@@ -25,7 +25,6 @@
 //const tape = require('tape');
 //const _test = require('tape-promise');
 //const test = _test(tape);
-
 const e2eUtils = require('./e2eUtils.js');
 const commUtils = require('../comm/util');
 

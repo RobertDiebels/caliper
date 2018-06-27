@@ -18,8 +18,6 @@
 
 'use strict';
 
-const utils = require('fabric-client/lib/utils.js');
-const logger = utils.getLogger('E2E testing');
 const commUtils = require('../comm/util');
 
 const path = require('path');
@@ -45,6 +43,7 @@ function init(config_path) {
     Client.addConfigFile(config_path);
     ORGS = Client.getConfigSetting('fabric').network;
 }
+
 module.exports.init = init;
 
 /**
@@ -66,7 +65,7 @@ function installChaincode(org, chaincode) {
     client.setCryptoSuite(cryptoSuite);
 
     const caRootsPath = ORGS.orderer.tls_cacerts;
-    let data = fs.readFileSync(path.join(__dirname, rootPath, caRootsPath));
+    let data = fs.readFileSync(caRootsPath);
     let caroots = Buffer.from(data).toString();
 
     channel.addOrderer(
@@ -83,7 +82,7 @@ function installChaincode(org, chaincode) {
     for (let key in ORGS[org]) {
         if (ORGS[org].hasOwnProperty(key)) {
             if (key.indexOf('peer') === 0) {
-                let data = fs.readFileSync(path.join(__dirname, rootPath, ORGS[org][key].tls_cacerts));
+                let data = fs.readFileSync(ORGS[org][key].tls_cacerts);
                 let peer = client.newPeer(
                     ORGS[org][key].requests,
                     {
@@ -106,46 +105,46 @@ function installChaincode(org, chaincode) {
         // get the peer org's admin required to send install chaincode requests
         return testUtil.getSubmitter(client, true /* get peer org admin */, org);
     }).then((admin) => {
-        the_user = admin;
+            the_user = admin;
 
-        // send proposal to endorser
-        const request = {
-            targets: targets,
-            chaincodePath: chaincode.path,
-            chaincodeId: chaincode.id,
-            chaincodeType: chaincode.language,
-            chaincodeVersion: chaincode.version
-        };
-        return client.installChaincode(request);
-    },
-    (err) => {
-        throw new Error('Failed to enroll user \'admin\'. ' + err);
-    }).then((results) => {
-        const proposalResponses = results[0];
+            // send proposal to endorser
+            const request = {
+                targets: targets,
+                chaincodePath: chaincode.path,
+                chaincodeId: chaincode.id,
+                chaincodeType: chaincode.language,
+                chaincodeVersion: chaincode.version
+            };
+            return client.installChaincode(request);
+        },
+        (err) => {
+            throw new Error('Failed to enroll user \'admin\'. ' + err);
+        }).then((results) => {
+            const proposalResponses = results[0];
 
-        let all_good = true;
-        const errors = [];
-        for(let i in proposalResponses) {
-            let one_good = false;
-            if (proposalResponses && proposalResponses[i].response && proposalResponses[i].response.status === 200) {
-                one_good = true;
-            } else {
-                logger.error('install proposal was bad');
-                errors.push(proposalResponses[i]);
+            let all_good = true;
+            const errors = [];
+            for (let i in proposalResponses) {
+                let one_good = false;
+                if (proposalResponses && proposalResponses[i].response && proposalResponses[i].response.status === 200) {
+                    one_good = true;
+                } else {
+                    errors.push(proposalResponses[i]);
+                }
+                all_good = all_good && one_good;
             }
-            all_good = all_good && one_good;
-        }
-        if (!all_good) {
-            throw new Error(util.format('Failed to send install Proposal or receive valid response: %s', errors));
-        }
-    },
-    (err) => {
-        throw new Error('Failed to send install proposal due to error: ' + (err.stack ? err.stack : err));
-    })
+            if (!all_good) {
+                throw new Error(util.format('Failed to send install Proposal or receive valid response: %s', errors));
+            }
+        },
+        (err) => {
+            throw new Error('Failed to send install proposal due to error: ' + (err.stack ? err.stack : err));
+        })
         .catch((err) => {
             return Promise.reject(err);
         });
 }
+
 module.exports.installChaincode = installChaincode;
 
 /**
@@ -153,7 +152,7 @@ module.exports.installChaincode = installChaincode;
  * @param {object[]} ehs The collection of event hubs.
  */
 function disconnect(ehs) {
-    for(let key in ehs) {
+    for (let key in ehs) {
         const eventhub = ehs[key];
         if (eventhub && eventhub.isconnected()) {
             eventhub.disconnect();
@@ -171,12 +170,12 @@ function disconnect(ehs) {
  * @param {object} endorsement_policy The endorsement policy object from the configuration file.
  * @return {object} The assembled chaincode proposal request.
  */
-function buildChaincodeProposal(client, the_user, chaincode, upgrade, transientMap, endorsement_policy) {
+function buildChaincodeInstantiateUpgradeRequest(client, the_user, chaincode, upgrade, transientMap, endorsement_policy) {
     const tx_id = client.newTransactionID();
 
     // send proposal to endorser
     const request = {
-        chaincodePath: chaincode.path,
+        // chaincodePath: chaincode.path, //
         chaincodeId: chaincode.id,
         chaincodeType: chaincode.language,
         chaincodeVersion: chaincode.version,
@@ -187,7 +186,7 @@ function buildChaincodeProposal(client, the_user, chaincode, upgrade, transientM
     };
 
 
-    if(upgrade) {
+    if (upgrade) {
         // use this call to test the transient map support during chaincode instantiation
         request.transientMap = transientMap;
     }
@@ -202,20 +201,21 @@ function buildChaincodeProposal(client, the_user, chaincode, upgrade, transientM
  * @param {boolean} upgrade Indicates whether the call is an upgrade or a new instantiation.
  * @return {Promise} The return promise.
  */
-function instantiateChaincode(chaincode, endorsement_policy, upgrade){
+function instantiateChaincode(chaincode, endorsement_policy, upgrade) {
     Client.setConfigSetting('request-timeout', 120000);
 
     let channel = testUtil.getChannel(chaincode.channel);
-    if(channel === null) {
+    if (channel === null) {
         return Promise.reject(new Error('could not find channel in config'));
     }
     const channel_name = channel.name;
     const userOrg = channel.organizations[0];
 
-    let targets = [],
-        eventhubs = [];
+    let eventhubs = [];
     let type = 'instantiate';
-    if(upgrade) {type = 'upgrade';}
+    if (upgrade) {
+        type = 'upgrade';
+    }
     const client = new Client();
     channel = client.newChannel(channel_name);
 
@@ -225,7 +225,7 @@ function instantiateChaincode(chaincode, endorsement_policy, upgrade){
     client.setCryptoSuite(cryptoSuite);
 
     const caRootsPath = ORGS.orderer.tls_cacerts;
-    let data = fs.readFileSync(path.join(__dirname, rootPath, caRootsPath));
+    let data = fs.readFileSync(caRootsPath);
     let caroots = Buffer.from(data).toString();
 
     channel.addOrderer(
@@ -238,34 +238,33 @@ function instantiateChaincode(chaincode, endorsement_policy, upgrade){
         )
     );
 
-    targets = [];
     const transientMap = {'test': 'transientValue'};
 
     return Client.newDefaultKeyValueStore({
         path: testUtil.storePathForOrg(orgName)
     }).then((store) => {
-
+        console.info("Retreiving admin for organization:", userOrg);
         client.setStateStore(store);
         return testUtil.getSubmitter(client, true /* use peer org admin*/, userOrg);
 
     }).then((admin) => {
         the_user = admin;
 
+        console.info("Adding peers to channel:", channel_name)
         let eventPeer = null;
-        for(let org in ORGS) {
-            if(org.indexOf('org') === 0) {
+        for (let org in ORGS) {
+            if (org.indexOf('orderer') !== 0) {
                 for (let key in ORGS[org]) {
-                    if(key.indexOf('peer') === 0) {
-                        let data = fs.readFileSync(path.join(__dirname, rootPath, ORGS[org][key].tls_cacerts));
+                    if (key.indexOf('peer') === 0) {
+                        let data = fs.readFileSync(ORGS[org][key].tls_cacerts);
                         let peer = client.newPeer(
                             ORGS[org][key].requests,
                             {
                                 pem: Buffer.from(data).toString(),
                                 'ssl-target-name-override': ORGS[org][key]['server-hostname']
                             });
-                        targets.push(peer);
                         channel.addPeer(peer);
-                        if(org === userOrg && !eventPeer) {
+                        if (org === userOrg && !eventPeer) {
                             eventPeer = key;
                         }
                     }
@@ -274,7 +273,7 @@ function instantiateChaincode(chaincode, endorsement_policy, upgrade){
         }
 
         // an event listener can only register with a peer in its own org
-        let data = fs.readFileSync(path.join(__dirname, rootPath, ORGS[userOrg][eventPeer].tls_cacerts));
+        let data = fs.readFileSync(ORGS[userOrg][eventPeer].tls_cacerts);
         let eh = client.newEventHub();
         eh.setPeerAddr(
             ORGS[userOrg][eventPeer].events,
@@ -295,27 +294,19 @@ function instantiateChaincode(chaincode, endorsement_policy, upgrade){
 
     }).then(() => {
 
-        // the v1 chaincode has Init() method that expects a transient map
-        if (upgrade) {
-            let request = buildChaincodeProposal(client, the_user, chaincode, upgrade, transientMap, endorsement_policy);
-            tx_id = request.txId;
-
-            return channel.sendUpgradeProposal(request);
-        } else {
-            let request = buildChaincodeProposal(client, the_user, chaincode, upgrade, transientMap, endorsement_policy);
-            tx_id = request.txId;
-            return channel.sendInstantiateProposal(request);
-        }
+        let request = buildChaincodeInstantiateUpgradeRequest(client, the_user, chaincode, upgrade, transientMap, endorsement_policy);
+        tx_id = request.txId;
+        return channel.sendInstantiateProposal(request);
 
     }, (err) => {
-        throw new Error('Failed to initialize the channel'+ (err.stack ? err.stack : err));
+        throw new Error('Failed to initialize the channel' + (err.stack ? err.stack : err));
     }).then((results) => {
 
         const proposalResponses = results[0];
 
         const proposal = results[1];
         let all_good = true;
-        for(let i in proposalResponses) {
+        for (let i in proposalResponses) {
             let one_good = false;
             if (proposalResponses[i].response && proposalResponses[i].response.status === 200) {
                 one_good = true;
@@ -379,7 +370,7 @@ function instantiateChaincode(chaincode, endorsement_policy, upgrade){
     }, (err) => {
         throw new Error('Failed to send instantiate due to error: ' + (err.stack ? err.stack : err));
     })
-        .then(()=>{
+        .then(() => {
             disconnect(eventhubs);
             return Promise.resolve();
         })
@@ -400,7 +391,7 @@ function getOrgPeers(orgName) {
     const peers = [];
     const org = ORGS[orgName];
     for (let key in org) {
-        if ( org.hasOwnProperty(key)) {
+        if (org.hasOwnProperty(key)) {
             if (key.indexOf('peer') === 0) {
                 peers.push(org[key]);
             }
@@ -432,7 +423,7 @@ function getcontext(channelConfig) {
     client.setCryptoSuite(cryptoSuite);
 
     const caRootsPath = ORGS.orderer.tls_cacerts;
-    let data = fs.readFileSync(path.join(__dirname, rootPath, caRootsPath));
+    let data = fs.readFileSync(caRootsPath);
     let caroots = Buffer.from(data).toString();
 
     channel.addOrderer(
@@ -457,16 +448,16 @@ function getcontext(channelConfig) {
 
             // set up the channel to use each org's random peer for
             // both requests and events
-            for(let i in channelConfig.organizations) {
-                let org   = channelConfig.organizations[i];
+            for (let i in channelConfig.organizations) {
+                let org = channelConfig.organizations[i];
                 let peers = getOrgPeers(org);
 
-                if(peers.length === 0) {
+                if (peers.length === 0) {
                     throw new Error('could not find peer of ' + org);
                 }
 
                 let peerInfo = peers[Math.floor(Math.random() * peers.length)];
-                let data = fs.readFileSync(path.join(__dirname, rootPath, peerInfo.tls_cacerts));
+                let data = fs.readFileSync(peerInfo.tls_cacerts);
                 let peer = client.newPeer(
                     peerInfo.requests,
                     {
@@ -477,7 +468,7 @@ function getcontext(channelConfig) {
                 channel.addPeer(peer);
 
                 // an event listener can only register with the peer in its own org
-                if(org === userOrg) {
+                if (org === userOrg) {
                     let eh = client.newEventHub();
                     eh.setPeerAddr(
                         peerInfo.events,
@@ -485,8 +476,8 @@ function getcontext(channelConfig) {
                             pem: Buffer.from(data).toString(),
                             'ssl-target-name-override': peerInfo['server-hostname'],
                             //'request-timeout': 120000
-                            'grpc.keepalive_timeout_ms' : 3000, // time to respond to the ping, 3 seconds
-                            'grpc.keepalive_time_ms' : 360000   // time to wait for ping response, 6 minutes
+                            'grpc.keepalive_timeout_ms': 3000, // time to respond to the ping, 3 seconds
+                            'grpc.keepalive_time_ms': 360000   // time to wait for ping response, 6 minutes
                             // 'grpc.http2.keepalive_time' : 15
                         }
                     );
@@ -507,12 +498,14 @@ function getcontext(channelConfig) {
                 client: client,
                 channel: channel,
                 submitter: the_user,
-                eventhubs: eventhubs});
+                eventhubs: eventhubs
+            });
         })
         .catch((err) => {
             return Promise.reject(err);
         });
 }
+
 module.exports.getcontext = getcontext;
 
 /**
@@ -521,8 +514,8 @@ module.exports.getcontext = getcontext;
  * @return {Promise} The return promise.
  */
 function releasecontext(context) {
-    if(context.hasOwnProperty('eventhubs')){
-        for(let key in context.eventhubs) {
+    if (context.hasOwnProperty('eventhubs')) {
+        for (let key in context.eventhubs) {
             const eventhub = context.eventhubs[key];
             if (eventhub && eventhub.isconnected()) {
                 eventhub.disconnect();
@@ -532,6 +525,7 @@ function releasecontext(context) {
     }
     return Promise.resolve();
 }
+
 module.exports.releasecontext = releasecontext;
 
 /**
@@ -543,7 +537,7 @@ module.exports.releasecontext = releasecontext;
  * @param {number} timeout The timeout for the transaction invocation.
  * @return {Promise<object>} The result and stats of the transaction invocation.
  */
-async function invokebycontext(context, id, version, args, timeout){
+async function invokebycontext(context, id, version, args, timeout) {
     const TxErrorEnum = require('./constant.js').TxErrorEnum;
     const TxErrorIndex = require('./constant.js').TxErrorIndex;
 
@@ -581,7 +575,7 @@ async function invokebycontext(context, id, version, args, timeout){
 
     let proposalResponseObject = null;
     try {
-        if(context.engine) {
+        if (context.engine) {
             context.engine.submitCallback(1);
         }
         try {
@@ -600,10 +594,10 @@ async function invokebycontext(context, id, version, args, timeout){
         const proposal = proposalResponseObject[1];
 
         let allGood = true;
-        for(let i in proposalResponses) {
+        for (let i in proposalResponses) {
             let one_good = false;
             let proposal_response = proposalResponses[i];
-            if( proposal_response.response && proposal_response.response.status === 200) {
+            if (proposal_response.response && proposal_response.response.status === 200) {
                 // TODO: the CPU cost of verifying response is too high.
                 // Now we ignore this step to improve concurrent capacity for the client
                 // so a client can initialize multiple concurrent transactions
@@ -643,7 +637,7 @@ async function invokebycontext(context, id, version, args, timeout){
         };
 
         let newTimeout = timeout * 1000 - (Date.now() - startTime);
-        if(newTimeout < 10000) {
+        if (newTimeout < 10000) {
             commUtils.log('WARNING: timeout is too small, default value is used instead');
             newTimeout = 10000;
         }
@@ -714,8 +708,7 @@ async function invokebycontext(context, id, version, args, timeout){
             invokeStatus.status = 'success';
             invokeStatus.verified = true;
         }
-    } catch (err)
-    {
+    } catch (err) {
         // at this point the Tx should be verified
         invokeStatus.status = 'failed';
         commUtils.log('Failed to complete transaction [' + txId.substring(0, 5) + '...]:' + (err instanceof Error ? err.stack : err));
@@ -759,28 +752,29 @@ function querybycontext(context, id, version, name) {
         args: [name]
     };
 
-    if(context.engine) {
+    if (context.engine) {
         context.engine.submitCallback(1);
     }
 
     return channel.queryByChaincode(request)
         .then((responses) => {
-            if(responses.length > 0) {
+            if (responses.length > 0) {
                 const value = responses[0];
-                if(value instanceof Error) {
+                if (value instanceof Error) {
                     throw value;
                 }
 
-                for(let i = 1 ; i < responses.length ; i++) {
-                    if(responses[i].length !== value.length || !responses[i].every(function(v,idx){
-                        return v === value[idx]; })) {
+                for (let i = 1; i < responses.length; i++) {
+                    if (responses[i].length !== value.length || !responses[i].every(function (v, idx) {
+                            return v === value[idx];
+                        })) {
                         throw new Error('conflicting query responses');
                     }
                 }
 
                 invoke_status.time_final = Date.now();
-                invoke_status.result     = responses[0];
-                invoke_status.status     = 'success';
+                invoke_status.result = responses[0];
+                invoke_status.status = 'success';
                 return Promise.resolve(invoke_status);
             }
             else {
@@ -788,9 +782,9 @@ function querybycontext(context, id, version, name) {
             }
         })
         .catch((err) => {
-            commUtils.log('Query failed, ' + (err.stack?err.stack:err));
+            commUtils.log('Query failed, ' + (err.stack ? err.stack : err));
             invoke_status.time_final = Date.now();
-            invoke_status.status     = 'failed';
+            invoke_status.status = 'failed';
             return Promise.resolve(invoke_status);
         });
 }
@@ -806,10 +800,11 @@ function readAllFiles(dir) {
     const files = fs.readdirSync(dir);
     const certs = [];
     files.forEach((file_name) => {
-        let file_path = path.join(dir,file_name);
+        let file_path = path.join(dir, file_name);
         let data = fs.readFileSync(file_path);
         certs.push(data);
     });
     return certs;
 }
+
 module.exports.readAllFiles = readAllFiles;

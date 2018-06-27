@@ -25,9 +25,9 @@
 //const tape = require('tape');
 //const _test = require('tape-promise');
 //const test = _test(tape);
-
 const e2eUtils = require('./e2eUtils.js');
 const testUtil = require('./util.js');
+
 const Client = require('fabric-client');
 
 module.exports.run = function (config_path) {

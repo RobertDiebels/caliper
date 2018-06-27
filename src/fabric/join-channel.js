@@ -27,7 +27,6 @@
 //const util = require('util');
 const path = require('path');
 const fs = require('fs');
-
 const Client = require('fabric-client');
 const EventHub = require('fabric-client/lib/EventHub.js');
 
@@ -67,7 +66,7 @@ function joinChannel(org, channelName) {
     const targets = [], eventhubs = [];
 
     const caRootsPath = ORGS.orderer.tls_cacerts;
-    let data = fs.readFileSync(path.join(__dirname, rootpath, caRootsPath));
+    let data = fs.readFileSync( caRootsPath);
     let caroots = Buffer.from(data).toString();
     let genesis_block = null;
 
@@ -88,6 +87,7 @@ function joinChannel(org, channelName) {
 
         return testUtil.getOrderAdminSubmitter(client);
     }).then((admin) => {
+        console.warn("Retreiving genesis block for Org:", orgName);
         tx_id = client.newTransactionID();
         let request = {
             txId : tx_id
@@ -95,18 +95,19 @@ function joinChannel(org, channelName) {
 
         return channel.getGenesisBlock(request);
     }).then((block) =>{
+        console.warn("Retreiving admin for Org:", orgName);
         genesis_block = block;
 
         // get the peer org's admin required to send join channel requests
         client._userContext = null;
-
         return testUtil.getSubmitter(client, true /* get peer org admin */, org);
     }).then((admin) => {
         //the_user = admin;
+        console.warn("Creating peers and eventhubs");
         for (let key in ORGS[org]) {
             if (ORGS[org].hasOwnProperty(key)) {
                 if(key.indexOf('peer') === 0) {
-                    data = fs.readFileSync(path.join(__dirname, rootpath, ORGS[org][key].tls_cacerts));
+                    data = fs.readFileSync(ORGS[org][key].tls_cacerts);
                     targets.push(
                         client.newPeer(
                             ORGS[org][key].requests,
@@ -131,7 +132,7 @@ function joinChannel(org, channelName) {
                 }
             }
         }
-
+        console.warn("Setting event listeners");
         const eventPromises = [];
         eventhubs.forEach((eh) => {
             let txPromise = new Promise((resolve, reject) => {
@@ -163,6 +164,7 @@ function joinChannel(org, channelName) {
             block : genesis_block,
             txId : tx_id
         };
+        console.warn("Requesting peers to join channel:", channelName);
         let sendPromise = channel.joinChannel(request);
         return Promise.all([sendPromise].concat(eventPromises));
     })

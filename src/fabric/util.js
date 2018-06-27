@@ -222,8 +222,8 @@ function getAdmin(client, userOrg) {
         const org = ORGS[userOrg];
         let keyPEM, certPEM;
         if(org.user) {
-            keyPEM = fs.readFileSync(path.join(__dirname, '../..', org.user.key));
-            certPEM = fs.readFileSync(path.join(__dirname, '../..', org.user.cert));
+            keyPEM = fs.readFileSync(org.user.key);
+            certPEM = fs.readFileSync( org.user.cert);
         }
         else {
             let keyPath = path.join(__dirname, util.format('../../%s/peerOrganizations/%s.example.com/users/Admin@%s.example.com/keystore', cryptodir, userOrg, userOrg));
@@ -270,8 +270,8 @@ function getOrdererAdmin(client) {
         const orderer = ORGS.orderer;
         let keyPEM, certPEM;
         if(orderer.user) {
-            keyPEM = fs.readFileSync(path.join(__dirname, '../..', orderer.user.key));
-            certPEM = fs.readFileSync(path.join(__dirname, '../..', orderer.user.cert));
+            keyPEM = fs.readFileSync( orderer.user.key);
+            certPEM = fs.readFileSync( orderer.user.cert);
         }
         else {
             let keyPath = path.join(__dirname, util.format('../../%s/ordererOrganizations/example.com/users/Admin@example.com/keystore', cryptodir));
@@ -287,8 +287,8 @@ function getOrdererAdmin(client) {
         }
 
         return Promise.resolve(client.createUser({
-            username: 'ordererAdmin',
-            mspid: 'OrdererMSP',
+            username: orderer.user.name,
+            mspid: orderer.mspid,
             cryptoContent: {
                 privateKeyPEM: keyPEM.toString(),
                 signedCertPEM: certPEM.toString()

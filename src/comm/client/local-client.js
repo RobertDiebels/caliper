@@ -1,23 +1,23 @@
 /**
-* Copyright 2017 HUAWEI. All Rights Reserved.
-*
-* SPDX-License-Identifier: Apache-2.0
-*
-*/
+ * Copyright 2017 HUAWEI. All Rights Reserved.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ */
 
 'use strict';
 
 // global variables
 const path = require('path');
-const bc   = require('../blockchain.js');
+const bc = require('../blockchain.js');
 const RateControl = require('../rate-control/rateControl.js');
 const Util = require('../util.js');
-const log  = Util.log;
+const log = Util.log;
 
 let blockchain;
-let results      = [];
-let txNum        = 0;
-let txLastNum    = 0;
+let results = [];
+let txNum = 0;
+let txLastNum = 0;
 let txUpdateTail = 0;
 let txUpdateTime = 1000;
 
@@ -28,14 +28,14 @@ function txUpdate() {
     let newNum = txNum - txLastNum;
     txLastNum += newNum;
 
-    let newResults =  results.slice(txUpdateTail);
+    let newResults = results.slice(txUpdateTail);
     txUpdateTail += newResults.length;
-    if(newResults.length === 0 && newNum === 0) {
+    if (newResults.length === 0 && newNum === 0) {
         return;
     }
 
     let newStats;
-    if(newResults.length === 0) {
+    if (newResults.length === 0) {
         newStats = bc.createNullDefaultTxStats();
     }
     else {
@@ -49,8 +49,8 @@ function txUpdate() {
  * @param {Object} result test result, should be an array or a single JSON object
  */
 function addResult(result) {
-    if(Array.isArray(result)) { // contain multiple results
-        for(let i = 0 ; i < result.length ; i++) {
+    if (Array.isArray(result)) { // contain multiple results
+        for (let i = 0; i < result.length; i++) {
             results.push(result[i]);
         }
     }
@@ -63,8 +63,8 @@ function addResult(result) {
  * Call before starting a new test
  */
 function beforeTest() {
-    results  = [];
-    txNum    = 0;
+    results = [];
+    txNum = 0;
     txUpdateTail = 0;
     txLastNum = 0;
 }
@@ -85,7 +85,7 @@ function submitCallback(count) {
  * @return {Promise} promise object
  */
 async function runFixedNumber(msg, cb, context) {
-    log('Info: client ' + process.pid +  ' start test runFixedNumber()' + (cb.info ? (':' + cb.info) : ''));
+    log('Info: client ' + process.pid + ' start test runFixedNumber()' + (cb.info ? (':' + cb.info) : ''));
     let rateControl = new RateControl(msg.rateControl, blockchain);
     rateControl.init(msg);
 
@@ -93,7 +93,7 @@ async function runFixedNumber(msg, cb, context) {
     const start = Date.now();
 
     let promises = [];
-    while(txNum < msg.numb) {
+    while (txNum < msg.numb) {
         promises.push(cb.run().then((result) => {
             addResult(result);
             return Promise.resolve();
@@ -114,7 +114,7 @@ async function runFixedNumber(msg, cb, context) {
  * @return {Promise} promise object
  */
 async function runDuration(msg, cb, context) {
-    log('Info: client ' + process.pid +  ' start test runDuration()' + (cb.info ? (':' + cb.info) : ''));
+    log('Info: client ' + process.pid + ' start test runDuration()' + (cb.info ? (':' + cb.info) : ''));
     let rateControl = new RateControl(msg.rateControl, blockchain);
     rateControl.init(msg);
     const duration = msg.txDuration; // duration in seconds
@@ -123,7 +123,7 @@ async function runDuration(msg, cb, context) {
     const start = Date.now();
 
     let promises = [];
-    while ((Date.now() - start)/1000 < duration) {
+    while ((Date.now() - start) / 1000 < duration) {
         promises.push(cb.run().then((result) => {
             addResult(result);
             return Promise.resolve();
@@ -143,8 +143,8 @@ async function runDuration(msg, cb, context) {
  */
 function doTest(msg) {
     log('doTest() with:', msg);
-    let cb = require(path.join(__dirname, '../../..', msg.cb));
-    blockchain = new bc(path.join(__dirname, '../../..', msg.config));
+    let cb = require(msg.cb);
+    blockchain = new bc(msg.config);
 
     beforeTest();
     // start an interval to report results repeatedly
@@ -154,7 +154,7 @@ function doTest(msg) {
      */
     let clearUpdateInter = function () {
         // stop reporter
-        if(txUpdateInter) {
+        if (txUpdateInter) {
             clearInterval(txUpdateInter);
             txUpdateInter = null;
             txUpdate();
@@ -162,16 +162,16 @@ function doTest(msg) {
     };
 
     return blockchain.getContext(msg.label, msg.clientargs).then((context) => {
-        if(typeof context === 'undefined') {
+        if (typeof context === 'undefined') {
             context = {
-                engine : {
-                    submitCallback : submitCallback
+                engine: {
+                    submitCallback: submitCallback
                 }
             };
         }
         else {
             context.engine = {
-                submitCallback : submitCallback
+                submitCallback: submitCallback
             };
         }
         if (msg.txDuration) {
@@ -209,26 +209,26 @@ function doTest(msg) {
 /**
  * Message handler
  */
-process.on('message', function(message) {
-    if(message.hasOwnProperty('type')) {
+process.on('message', function (message) {
+    if (message.hasOwnProperty('type')) {
         try {
-            switch(message.type) {
-            case 'test': {
-                let result;
-                doTest(message).then((output) => {
-                    result = output;
-                    return Util.sleep(200);
-                }).then(() => {
-                    process.send({type: 'testResult', data: result});
-                });
-                break;
-            }
-            default: {
-                process.send({type: 'error', data: 'unknown message type'});
-            }
+            switch (message.type) {
+                case 'test': {
+                    let result;
+                    doTest(message).then((output) => {
+                        result = output;
+                        return Util.sleep(200);
+                    }).then(() => {
+                        process.send({type: 'testResult', data: result});
+                    });
+                    break;
+                }
+                default: {
+                    process.send({type: 'error', data: 'unknown message type'});
+                }
             }
         }
-        catch(err) {
+        catch (err) {
             process.send({type: 'error', data: err});
         }
     }

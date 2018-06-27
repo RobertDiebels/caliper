@@ -205,7 +205,6 @@ function defaultTest(args, clientArgs, final) {
         let testLabel   = args.label;
         let testRounds  = args.txDuration ? args.txDuration : args.txNumber;
         let tests = []; // array of all test rounds
-        let configPath = path.relative(absCaliperDir, absNetworkFile);
         for(let i = 0 ; i < testRounds.length ; i++) {
             let msg = {
                 type: 'test',
@@ -214,7 +213,7 @@ function defaultTest(args, clientArgs, final) {
                 trim: args.trim ? args.trim : 0,
                 args: args.arguments,
                 cb  : args.callback,
-                config: configPath
+                config: absNetworkFile
             };
             // condition for time based or number based test driving
             if (args.txNumber) {
