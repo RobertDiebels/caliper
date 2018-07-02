@@ -73,7 +73,7 @@ function strNormalize(data) {
         return '-';
     }
 
-    const maxLen = 30;
+    const maxLen = 120;
     if(data.length <= maxLen) {
         return data;
     }

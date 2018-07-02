@@ -1,0 +1,67 @@
+{
+  "blockchain": {
+    "type": "fabric",
+    "config": "network/configuration.json"
+  },
+  "test": {
+    "clients": {
+      "type": "local",
+      "number": 1
+    },
+    "rounds": [
+      {
+        "label": "open",
+        "txNumber": [
+          100
+        ],
+        "rateControl": [
+          {
+            "type": "fixed-rate",
+            "opts": {
+              "tps": 100
+            }
+          }
+        ],
+        "arguments": {
+          "money": 10000
+        },
+        "callback": "/caliper/benchmark/callbacks/open.js"
+      },
+      {
+        "label": "query",
+        "txNumber": [
+          100
+        ],
+        "rateControl": [
+          {
+            "type": "fixed-rate",
+            "opts": {
+              "tps": 100
+            }
+          }
+        ],
+        "callback": "/caliper/benchmark/callbacks/query.js"
+      }
+    ]
+  },
+  "monitor": {
+    "type": [
+      "docker",
+      "process"
+    ],
+    "docker": {
+      "name": [
+        "http://192.168.1.66:31000/all"
+      ],
+      "images": []
+    },
+    "process": [
+      {
+        "command": "node",
+        "arguments": "local-client.js",
+        "multiOutput": "avg"
+      }
+    ],
+    "interval": 1
+  }
+}

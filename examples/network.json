@@ -1,0 +1,117 @@
+{
+  "fabric": {
+    "cryptodir": "/caliper/network/crypto",
+    "network": {
+      "orderer": {
+        "url": "grpc://orderer0.ordererorg:7050",
+        "mspid": "OrdererOrg",
+        "user": {
+          "name": "Admin",
+          "key": "/caliper/network/crypto/ordererorg/users/Admin@ordererorg/msp/keystore/c92a8bcf3b356f15f1c710326677a775813e177a0405f575bcd79565b73699ff_sk",
+          "cert": "/caliper/network/crypto/ordererorg/users/Admin@ordererorg/msp/signcerts/Admin@ordererorg-cert.pem"
+        },
+        "server-hostname": "orderer0.ordererorg",
+        "tls_cacerts": "/caliper/network/crypto/ordererorg/orderers/orderer0.ordererorg/tls/ca.crt"
+      },
+      "Org1": {
+        "name": "Org1",
+        "mspid": "Org1",
+        "ca": {
+          "url": "https://ca.org1:7054",
+          "name": "ca.org1"
+        },
+        "user": {
+          "name": "Admin",
+          "key": "/caliper/network/crypto/org1/users/Admin@org1/msp/keystore/099d668182e66ecfa7d48dcbce29e48f9f291e481e1c25af09d3ea70cb019ffa_sk",
+          "cert": "/caliper/network/crypto/org1/users/Admin@org1/msp/signcerts/Admin@org1-cert.pem"
+        },
+        "peer0": {
+          "requests": "grpc://peer0.org1:7051",
+          "events": "grpc://peer0.org1:7053",
+          "server-hostname": "peer0.org1",
+          "tls_cacerts": "/caliper/network/crypto/org1/peers/peer0.org1/tls/ca.crt"
+        },
+        "peer1": {
+          "requests": "grpc://peer1.org1:7051",
+          "events": "grpc://peer1.org1:7053",
+          "server-hostname": "peer1.org1",
+          "tls_cacerts": "/caliper/network/crypto/org1/peers/peer1.org1/tls/ca.crt"
+        }
+      },
+      "Org2": {
+        "name": "Org2",
+        "mspid": "Org2",
+        "ca": {
+          "url": "https://ca.org2:7054",
+          "name": "ca.org2"
+        },
+        "user": {
+          "name": "Admin",
+          "key": "/caliper/network/crypto/org2/users/Admin@org2/msp/keystore/13ff9d32de5cbede63903511cfb0fa457aac38131cc07e32f8383f038e8cae8d_sk",
+          "cert": "/caliper/network/crypto/org2/users/Admin@org2/msp/signcerts/Admin@org2-cert.pem"
+        },
+        "peer0": {
+          "requests": "grpc://peer0.org2:7051",
+          "events": "grpc://peer0.org2:7053",
+          "server-hostname": "peer0.org2",
+          "tls_cacerts": "/caliper/network/crypto/org2/peers/peer0.org2/tls/ca.crt"
+        },
+        "peer1": {
+          "requests": "grpc://peer1.org2:7051",
+          "events": "grpc://peer1.org2:7053",
+          "server-hostname": "peer1.org2",
+          "tls_cacerts": "/caliper/network/crypto/org2/peers/peer1.org2/tls/ca.crt"
+        }
+      }
+    },
+    "channel": [
+      {
+        "name": "kubechain",
+        "config": "/caliper/network/channels/kubechain/kubechain.tx",
+        "organizations": [
+          "Org1",
+          "Org2"
+        ]
+      }
+    ],
+    "chaincodes": [
+      {
+        "id": "simple",
+        "path": "simple",
+        "language": "golang",
+        "version": "v0",
+        "channel": "kubechain"
+      }
+    ],
+    "endorsement-policy": {
+      "identities": [
+        {
+          "role": {
+            "name": "member",
+            "mspId": "Org1"
+          }
+        },
+        {
+          "role": {
+            "name": "member",
+            "mspId": "Org2"
+          }
+        }
+      ],
+      "policy": {
+        "1-of": [
+          {
+            "signed-by": 0
+          },
+          {
+            "signed-by": 1
+          }
+        ]
+      }
+    },
+    "context": {
+      "open": "kubechain",
+      "query": "kubechain"
+    }
+  }
+}

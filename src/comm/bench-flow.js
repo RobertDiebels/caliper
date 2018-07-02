@@ -326,7 +326,7 @@ module.exports.run = function(configFile, networkFile) {
             monitor.printMaxStats();
             monitor.stop();
             let date = new Date().toISOString().replace(/-/g,'').replace(/:/g,'').substr(0,15);
-            let output = path.join(process.cwd(), 'report'+date+'.html' );
+            let output = path.join(process.cwd(),'reports', 'report'+date+'.html' );
             return report.generate(output).then(()=>{
                 demo.stopWatch(output);
                 log('Generated report at ' + output);
