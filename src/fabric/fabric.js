@@ -125,7 +125,7 @@ class Fabric extends BlockchainInterface{
                 if(func) {
                     simpleArgs.splice(0, 0, func);
                 }
-                promises.push(e2eUtils.invokebycontext(context, contractID, contractVer, simpleArgs, timeout));
+                promises.push(e2eUtils.invokebycontext(context, contractID, contractVer, simpleArgs, timeout)); //TODO: Move switchContext here.
             }
             catch(err) {
                 commUtils.log(err);

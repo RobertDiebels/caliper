@@ -114,7 +114,7 @@ function findContainers() {
                             });
                             this.stats[containers[i].Id] = newContainerStat();
                         }
-                    })
+                    });
                 }
             }
             else {
@@ -237,7 +237,6 @@ class MonitorDocker extends MonitorInterface {
                         else {  // remote
                             self.stats[id].mem_usage.push(stat.memory_stats.usage);
                             self.stats[id].mem_percent.push(stat.memory_stats.usage / stat.memory_stats.limit);
-                            //self.stats[id].cpu_percent.push((stat.cpu_stats.cpu_usage.total_usage - stat.precpu_stats.cpu_usage.total_usage) / (stat.cpu_stats.system_cpu_usage - stat.precpu_stats.system_cpu_usage) * 100);
                             let cpuDelta = stat.cpu_stats.cpu_usage.total_usage - stat.precpu_stats.cpu_usage.total_usage;
                             let sysDelta = stat.cpu_stats.system_cpu_usage - stat.precpu_stats.system_cpu_usage;
                             if (cpuDelta > 0.0 && sysDelta > 0.0) {
@@ -283,7 +282,7 @@ class MonitorDocker extends MonitorInterface {
     static findCoresInUse(percpu_usage) {
         percpu_usage = percpu_usage.map((coreUsage) => {
             if (coreUsage > 0) {
-                return (coreUsage)
+                return (coreUsage);
             }
         });
         return percpu_usage.length;

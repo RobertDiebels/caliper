@@ -12,7 +12,8 @@
     "lint": "npx eslint .",
     "list": "node ./scripts/list.js",
     "startclient": "node ./src/comm/client/zoo-client.js",
-    "start": "node --preserve-symlinks ./src/index.js -c /caliper/benchmark/configuration.json -n /caliper/network/configuration.json"
+    "start": "node --preserve-symlinks ./src/index.js -c /caliper/benchmark/configuration.json -n /caliper/network/configuration.json",
+    "start-server": "node --preserve-symlinks ./src/server.js -c /caliper/benchmark/configuration.json -n /caliper/network/configuration.json"
   },
   "engines": {
     "node": ">=8.10.0",
@@ -24,6 +25,7 @@
     "cbor": "^3.0.3",
     "commander": "^2.11.0",
     "dockerode": "^2.5.0",
+    "express": "^4.16.3",
     "fabric-ca-client": "1.0.8",
     "fabric-client": "1.0.8",
     "fs-extra": "^4.0.2",

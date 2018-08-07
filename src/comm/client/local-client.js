@@ -213,19 +213,19 @@ process.on('message', function (message) {
     if (message.hasOwnProperty('type')) {
         try {
             switch (message.type) {
-                case 'test': {
-                    let result;
-                    doTest(message).then((output) => {
-                        result = output;
-                        return Util.sleep(200);
-                    }).then(() => {
-                        process.send({type: 'testResult', data: result});
-                    });
-                    break;
-                }
-                default: {
-                    process.send({type: 'error', data: 'unknown message type'});
-                }
+            case 'test': {
+                let result;
+                doTest(message).then((output) => {
+                    result = output;
+                    return Util.sleep(200);
+                }).then(() => {
+                    process.send({type: 'testResult', data: result});
+                });
+                break;
+            }
+            default: {
+                process.send({type: 'error', data: 'unknown message type'});
+            }
             }
         }
         catch (err) {

@@ -243,14 +243,14 @@ function instantiateChaincode(chaincode, endorsement_policy, upgrade) {
     return Client.newDefaultKeyValueStore({
         path: testUtil.storePathForOrg(orgName)
     }).then((store) => {
-        console.info("Retreiving admin for organization:", userOrg);
+        console.info('Retreiving admin for organization:', userOrg);
         client.setStateStore(store);
         return testUtil.getSubmitter(client, true /* use peer org admin*/, userOrg);
 
     }).then((admin) => {
         the_user = admin;
 
-        console.info("Adding peers to channel:", channel_name)
+        console.info('Adding peers to channel:', channel_name);
         let eventPeer = null;
         for (let org in ORGS) {
             if (org.indexOf('orderer') !== 0) {
@@ -400,7 +400,7 @@ function getOrgPeers(orgName) {
 
     return peers;
 }
-
+let currentPeerIndex = 0;
 /**
  * Create a Fabric context based on the channel configuration.
  * @param {object} channelConfig The channel object from the configuration file.
@@ -455,33 +455,35 @@ function getcontext(channelConfig) {
                 if (peers.length === 0) {
                     throw new Error('could not find peer of ' + org);
                 }
+                else{
+                    peers.forEach((peerInfo)=>{
+                        let data = fs.readFileSync(peerInfo.tls_cacerts);
+                        let peer = client.newPeer(
+                            peerInfo.requests,
+                            {
+                                pem: Buffer.from(data).toString(),
+                                'ssl-target-name-override': peerInfo['server-hostname']
+                            }
+                        );
+                        channel.addPeer(peer);
 
-                let peerInfo = peers[Math.floor(Math.random() * peers.length)];
-                let data = fs.readFileSync(peerInfo.tls_cacerts);
-                let peer = client.newPeer(
-                    peerInfo.requests,
-                    {
-                        pem: Buffer.from(data).toString(),
-                        'ssl-target-name-override': peerInfo['server-hostname']
-                    }
-                );
-                channel.addPeer(peer);
-
-                // an event listener can only register with the peer in its own org
-                if (org === userOrg) {
-                    let eh = client.newEventHub();
-                    eh.setPeerAddr(
-                        peerInfo.events,
-                        {
-                            pem: Buffer.from(data).toString(),
-                            'ssl-target-name-override': peerInfo['server-hostname'],
-                            //'request-timeout': 120000
-                            'grpc.keepalive_timeout_ms': 3000, // time to respond to the ping, 3 seconds
-                            'grpc.keepalive_time_ms': 360000   // time to wait for ping response, 6 minutes
-                            // 'grpc.http2.keepalive_time' : 15
+                        // an event listener can only register with the peer in its own org
+                        if (org === userOrg) {
+                            let eh = client.newEventHub();
+                            eh.setPeerAddr(
+                                peerInfo.events,
+                                {
+                                    pem: Buffer.from(data).toString(),
+                                    'ssl-target-name-override': peerInfo['server-hostname'],
+                                    //'request-timeout': 120000
+                                    'grpc.keepalive_timeout_ms': 3000, // time to respond to the ping, 3 seconds
+                                    'grpc.keepalive_time_ms': 360000   // time to wait for ping response, 6 minutes
+                                    // 'grpc.http2.keepalive_time' : 15
+                                }
+                            );
+                            eventhubs.push(eh);
                         }
-                    );
-                    eventhubs.push(eh);
+                    });
                 }
             }
 
@@ -579,6 +581,7 @@ async function invokebycontext(context, id, version, args, timeout) {
             context.engine.submitCallback(1);
         }
         try {
+            console.log("Endorsement phase started");
             proposalResponseObject = await channel.sendTransactionProposal(proposalRequest, timeout * 1000);
             invokeStatus.time_endorse = Date.now();
         } catch (err) {
@@ -587,6 +590,7 @@ async function invokebycontext(context, id, version, args, timeout) {
             invokeStatus.error_messages[TxErrorIndex.ProposalResponseError] = err.toString();
             // error occurred, early life-cycle termination, definitely failed
             invokeStatus.verified = true;
+            console.log("Error during endorsement", err);
             throw err; // handle logging in one place
         }
 
@@ -610,6 +614,7 @@ async function invokebycontext(context, id, version, args, timeout) {
                 invokeStatus.error_messages[TxErrorIndex.BadProposalResponseError] = err.toString();
                 // explicit rejection, early life-cycle termination, definitely failed
                 invokeStatus.verified = true;
+                console.log("Endorsement phase failed", err);
                 throw err;
             }
             allGood = allGood && one_good;
@@ -625,6 +630,7 @@ async function invokebycontext(context, id, version, args, timeout) {
                 invokeStatus.error_messages[TxErrorIndex.BadProposalResponseError] = err.toString();
                 // r/w set mismatch, early life-cycle termination, definitely failed
                 invokeStatus.verified = true;
+                console.log("Endorsement phase failed", err);
                 throw err;
             }
         }
@@ -675,6 +681,7 @@ async function invokebycontext(context, id, version, args, timeout) {
             }));
         });
 
+        console.log("Ordering phase started");
         let broadcastResponse;
         try {
             broadcastResponse = await channel.sendTransaction(transactionRequest);
@@ -683,10 +690,12 @@ async function invokebycontext(context, id, version, args, timeout) {
             // so let the events decide the final status, but log this error
             invokeStatus.error_flags |= TxErrorEnum.OrdererResponseError;
             invokeStatus.error_messages[TxErrorIndex.OrdererResponseError] = err.toString();
+            console.log("Error during ordering phase", err);
         }
 
         invokeStatus.time_order = Date.now();
 
+        console.log("Validation phase started");
         if (broadcastResponse && broadcastResponse.status === 'SUCCESS') {
             invokeStatus.status = 'submitted';
         } else if (broadcastResponse && broadcastResponse.status !== 'SUCCESS') {
@@ -695,6 +704,7 @@ async function invokebycontext(context, id, version, args, timeout) {
             invokeStatus.error_messages[TxErrorIndex.BadOrdererResponseError] = err.toString();
             // the submission was explicitly rejected, so the Tx will definitely not be ordered
             invokeStatus.verified = true;
+            console.log("Error during validation phase", err);
             throw err;
         }
 
@@ -711,11 +721,10 @@ async function invokebycontext(context, id, version, args, timeout) {
     } catch (err) {
         // at this point the Tx should be verified
         invokeStatus.status = 'failed';
-        commUtils.log('Failed to complete transaction [' + txId.substring(0, 5) + '...]:' + (err instanceof Error ? err.stack : err));
+        console.log('Failed to complete transaction [' + txId.substring(0, 5) + '...]:' + ((err && err instanceof Error) ? err.stack : err), JSON.stringify(invokeStatus.error_messages));
     }
 
     invokeStatus.time_final = Date.now();
-
     return invokeStatus;
 }
 

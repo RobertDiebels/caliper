@@ -43,7 +43,7 @@ const allEventhubs = [];
  * @param {object[]} ehs A collection of event hubs.
  */
 function disconnect(ehs) {
-    for(let key in ehs) {
+    for (let key in ehs) {
         const eventhub = ehs[key];
         if (eventhub && eventhub.isconnected()) {
             eventhub.disconnect();
@@ -66,7 +66,7 @@ function joinChannel(org, channelName) {
     const targets = [], eventhubs = [];
 
     const caRootsPath = ORGS.orderer.tls_cacerts;
-    let data = fs.readFileSync( caRootsPath);
+    let data = fs.readFileSync(caRootsPath);
     let caroots = Buffer.from(data).toString();
     let genesis_block = null;
 
@@ -87,15 +87,15 @@ function joinChannel(org, channelName) {
 
         return testUtil.getOrderAdminSubmitter(client);
     }).then((admin) => {
-        console.warn("Retreiving genesis block for Org:", orgName);
+        console.warn('Retreiving genesis block for Org:', orgName);
         tx_id = client.newTransactionID();
         let request = {
-            txId : tx_id
+            txId: tx_id
         };
 
         return channel.getGenesisBlock(request);
-    }).then((block) =>{
-        console.warn("Retreiving admin for Org:", orgName);
+    }).then((block) => {
+        console.warn('Retreiving admin for Org:', orgName);
         genesis_block = block;
 
         // get the peer org's admin required to send join channel requests
@@ -103,10 +103,10 @@ function joinChannel(org, channelName) {
         return testUtil.getSubmitter(client, true /* get peer org admin */, org);
     }).then((admin) => {
         //the_user = admin;
-        console.warn("Creating peers and eventhubs");
+        console.warn('Creating peers and eventhubs', orgName);
         for (let key in ORGS[org]) {
             if (ORGS[org].hasOwnProperty(key)) {
-                if(key.indexOf('peer') === 0) {
+                if (key.indexOf('peer') === 0) {
                     data = fs.readFileSync(ORGS[org][key].tls_cacerts);
                     targets.push(
                         client.newPeer(
@@ -132,18 +132,21 @@ function joinChannel(org, channelName) {
                 }
             }
         }
-        console.warn("Setting event listeners");
+        console.warn('Setting event listeners:', orgName);
         const eventPromises = [];
         eventhubs.forEach((eh) => {
             let txPromise = new Promise((resolve, reject) => {
-                let handle = setTimeout(reject, 30000);
+                const timeoutInMillis = 30000;
+                let handle = setTimeout(() => {
+                    reject(new Error('Transaction timeout expired after: ' + timeoutInMillis + 'ms'));
+                }, timeoutInMillis);
 
                 eh.registerBlockEvent((block) => {
                     clearTimeout(handle);
 
                     // in real-world situations, a peer may have more than one channel so
                     // we must check that this block came from the channel we asked the peer to join
-                    if(block.data.data.length === 1) {
+                    if (block.data.data.length === 1) {
                         // Config block must only contain one transaction
                         const channel_header = block.data.data[0].payload.header.channel_header;
                         if (channel_header.channel_id === channelName) {
@@ -153,6 +156,9 @@ function joinChannel(org, channelName) {
                             reject(new Error('invalid channel name'));
                         }
                     }
+                },
+                (error) => {
+                    reject(new Error(`Error occurred for registerBlockEvent, ${error}, ${JSON.stringify(eh.getPeerAddr(), null, 4)}`));
                 });
             });
 
@@ -160,23 +166,23 @@ function joinChannel(org, channelName) {
         });
         tx_id = client.newTransactionID();
         let request = {
-            targets : targets,
-            block : genesis_block,
-            txId : tx_id
+            targets: targets,
+            block: genesis_block,
+            txId: tx_id
         };
-        console.warn("Requesting peers to join channel:", channelName);
+        console.warn('Requesting', orgName, 'peers to join channel:', channelName);
         let sendPromise = channel.joinChannel(request);
         return Promise.all([sendPromise].concat(eventPromises));
     })
         .then((results) => {
             disconnect(eventhubs);
-            if(results[0] && results[0][0] && results[0][0].response && results[0][0].response.status === 200) {
+            if (results[0] && results[0][0] && results[0][0].response && results[0][0].response.status === 200) {
                 // t.pass(util.format('Successfully joined peers in organization %s to join the channel', orgName));
             } else {
                 throw new Error('Unexpected join channel response');
             }
         })
-        .catch((err)=>{
+        .catch((err) => {
             disconnect(eventhubs);
             return Promise.reject(err);
         });
@@ -186,17 +192,17 @@ module.exports.run = function (config_path) {
     Client.addConfigFile(config_path);
     const fabric = Client.getConfigSetting('fabric');
     let channels = fabric.channel;
-    if(!channels || channels.length === 0) {
+    if (!channels || channels.length === 0) {
         return Promise.resolve();
     }
     ORGS = Client.getConfigSetting('fabric').network;
-    return new Promise(function(resolve, reject) {
+    return new Promise(function (resolve, reject) {
         const t = global.tapeObj;
         t.comment('Join channel......');
 
-        return channels.reduce((prev, channel)=>{
+        return channels.reduce((prev, channel) => {
             return prev.then(() => {
-                if(channel.deployed) {
+                if (channel.deployed) {
                     return Promise.resolve();
                 }
 
@@ -205,7 +211,7 @@ module.exports.run = function (config_path) {
                 channel.organizations.forEach((org, index) => {
                     promises.push(joinChannel(org, channel.name));
                 });
-                return Promise.all(promises).then(()=>{
+                return Promise.all(promises).then(() => {
                     t.pass('Successfully joined ' + channel.name);
                     return Promise.resolve();
                 });
@@ -214,8 +220,8 @@ module.exports.run = function (config_path) {
             .then(() => {
                 return resolve();
             })
-            .catch((err)=>{
-                t.fail('Failed to join peers, ' + (err.stack?err.stack:err));
+            .catch((err) => {
+                t.fail('Failed to join peers, ' + (err && err.stack ? err.stack : err));
                 return reject(new Error('Fabric: Join channel failed'));
             });
     });
