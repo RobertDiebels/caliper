@@ -1,10 +1,16 @@
+const Path = require('path');
 const Express = require('express');
+const TarGz = require('targz');
+const Fs = require('fs-extra');
 const app = Express();
+
 const port = 3000;
 
 process.env.HFC_LOGGING = '{"debug":"console","info":"console","error": "console"}';
-
-app.use('/caliper/reports', Express.static('reports'));
+const downloadPath = Path.posix.join(Path.posix.sep, 'caliper', 'data', 'downloads');
+Fs.ensureDirSync(downloadPath);
+app.use('/reports', Express.static(Path.join(Path.sep, 'caliper', 'reports')));
+app.use('/data/dumps', Express.static(Path.join(Path.sep, 'caliper', 'data','dumps')));
 
 app.get('/', (request, response) => {
     response.send('Ready for requests!');
@@ -20,6 +26,22 @@ app.get('/stop', (request, response) => {
     response.send('Stopping');
 });
 
+app.get('/data/download', (request, response) => {
+    const filename = `test-results-${Date.now()}.tar.gz`;
+    const path = Path.join(downloadPath, filename);
+    TarGz.compress({
+        src: Path.join(Path.sep, 'caliper', 'data', 'dumps'),
+        dest: path
+    }, function(err){
+        if(err) {
+            console.log(err);
+        } else {
+            response.sendFile(path);
+        }
+    });
+});
+
+// compress files into tar.gz archive
 
 app.listen(port, (err) => {
     if (err) {

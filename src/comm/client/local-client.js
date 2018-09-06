@@ -8,7 +8,8 @@
 'use strict';
 
 // global variables
-const path = require('path');
+const Path = require('path');
+const Fs = require('fs-extra');
 const bc = require('../blockchain.js');
 const RateControl = require('../rate-control/rateControl.js');
 const Util = require('../util.js');
@@ -136,6 +137,15 @@ async function runDuration(msg, cb, context) {
     return await blockchain.releaseContext(context);
 }
 
+function createDataDump(message, results) {
+    console.log("Creating datadump");
+    const label = message.label;
+    const filename = `${label.toLowerCase()}-${Date.now()}.json`;
+    const path = Path.join(Path.sep, 'caliper', 'data', 'dumps', filename);
+    Fs.outputJsonSync(path, results);
+    console.log("Created datadump:", filename);
+}
+
 /**
  * Perform the test
  * @param {JSON} msg start test message
@@ -181,6 +191,7 @@ function doTest(msg) {
         }
     }).then(() => {
         clearUpdateInter();
+        createDataDump(msg, results);
         return cb.end(results);
     }).then(() => {
         // conditionally trim beginning and end results for this test run
