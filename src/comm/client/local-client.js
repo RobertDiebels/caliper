@@ -138,12 +138,7 @@ async function runDuration(msg, cb, context) {
 }
 
 function createDataDump(message, results) {
-    console.log("Creating datadump");
-    const label = message.label;
-    const filename = `${label.toLowerCase()}-${Date.now()}.json`;
-    const path = Path.join(Path.sep, 'caliper', 'data', 'dumps', filename);
-    Fs.outputJsonSync(path, results);
-    console.log("Created datadump:", filename);
+    Util.createDataDump(message.label + '-transactions', results);
 }
 
 /**

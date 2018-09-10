@@ -1,10 +1,10 @@
 /**
-* Copyright 2017 HUAWEI. All Rights Reserved.
-*
-* SPDX-License-Identifier: Apache-2.0
-*
-* @file Implementation of the default test framework which start a test flow to run multiple tests according to the configuration file
-*/
+ * Copyright 2017 HUAWEI. All Rights Reserved.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * @file Implementation of the default test framework which start a test flow to run multiple tests according to the configuration file
+ */
 
 
 'use strict';
@@ -19,8 +19,8 @@ const test = _test(tape);
 const table = require('table');
 const Blockchain = require('./blockchain.js');
 const Monitor = require('./monitor.js');
-const Report  = require('./report.js');
-const Client  = require('./client/client.js');
+const Report = require('./report.js');
+const Client = require('./client/client.js');
 const Util = require('./util.js');
 const log = Util.log;
 let blockchain, monitor, report, client;
@@ -35,24 +35,24 @@ let absCaliperDir = path.join(__dirname, '../..');
  */
 function createReport() {
     let config = require(absConfigFile);
-    report  = new Report();
+    report = new Report();
     report.addMetadata('DLT', blockchain.gettype());
-    try{
+    try {
         report.addMetadata('Benchmark', config.test.name);
     }
-    catch(err) {
+    catch (err) {
         report.addMetadata('Benchmark', ' ');
     }
-    try{
+    try {
         report.addMetadata('Description', config.test.description);
     }
-    catch(err) {
+    catch (err) {
         report.addMetadata('Description', ' ');
     }
-    try{
+    try {
         let r = 0;
-        for(let i = 0 ; i < config.test.rounds.length ; i++) {
-            if(config.test.rounds[i].hasOwnProperty('txNumber')) {
+        for (let i = 0; i < config.test.rounds.length; i++) {
+            if (config.test.rounds[i].hasOwnProperty('txNumber')) {
                 r += config.test.rounds[i].txNumber.length;
             }
         }
@@ -60,13 +60,13 @@ function createReport() {
 
         report.setBenchmarkInfo(JSON.stringify(config.test, null, 2));
     }
-    catch(err) {
+    catch (err) {
         report.addMetadata('Test Rounds', ' ');
     }
 
     let sut = require(absNetworkFile);
-    if(sut.hasOwnProperty('info')) {
-        for(let key in sut.info) {
+    if (sut.hasOwnProperty('info')) {
+        for (let key in sut.info) {
             report.addSUTInfo(key, sut.info[key]);
         }
     }
@@ -105,12 +105,12 @@ function getResultValue(r) {
         row.push(r.delay.max.toFixed(2) + ' s');
         row.push(r.delay.min.toFixed(2) + ' s');
         row.push((r.delay.sum / r.succ).toFixed(2) + ' s');
-        if(r.delay.detail.length === 0) {
+        if (r.delay.detail.length === 0) {
             row.push('N/A');
         }
-        else{
-            r.delay.detail.sort(function(a, b) {
-                return a-b;
+        else {
+            r.delay.detail.sort(function (a, b) {
+                return a - b;
             });
             row.push(r.delay.detail[Math.floor(r.delay.detail.length * 0.75)].toFixed(2) + ' s');
         }
@@ -129,7 +129,7 @@ function getResultValue(r) {
  */
 function printResultsByRound() {
     resultsbyround[0].unshift('Test');
-    for(let i = 1 ; i < resultsbyround.length ; i++) {
+    for (let i = 1; i < resultsbyround.length; i++) {
         resultsbyround[i].unshift(i.toFixed(0));
     }
     log('###all test results:###');
@@ -152,12 +152,12 @@ function printResultsByRound() {
  * @param {String} label label of the test round
  * @return {Promise} promise object
  */
-function processResult(results, label){
-    try{
+function processResult(results, label) {
+    try {
         let resultTable = [];
         resultTable[0] = getResultTitle();
         let r;
-        if(Blockchain.mergeDefaultTxStats(results) === 0) {
+        if (Blockchain.mergeDefaultTxStats(results) === 0) {
             r = Blockchain.createNullDefaultTxStats;
             r.label = label;
         }
@@ -167,10 +167,10 @@ function processResult(results, label){
             resultTable[1] = getResultValue(r);
         }
 
-        if(resultsbyround.length === 0) {
+        if (resultsbyround.length === 0) {
             resultsbyround.push(resultTable[0].slice(0));
         }
-        if(resultTable.length > 1) {
+        if (resultTable.length > 1) {
             resultsbyround.push(resultTable[1].slice(0));
         }
         log('###test result:###');
@@ -178,14 +178,15 @@ function processResult(results, label){
         let idx = report.addBenchmarkRound(label);
         report.setRoundPerformance(idx, resultTable);
         let resourceTable = monitor.getDefaultStats();
-        if(resourceTable.length > 0) {
+        monitor.createDataDump(label+"-resources");
+        if (resourceTable.length > 0) {
             log('### resource stats ###');
             printTable(resourceTable);
             report.setRoundResource(idx, resourceTable);
         }
         return Promise.resolve();
     }
-    catch(err) {
+    catch (err) {
         log(err);
         return Promise.reject(err);
     }
@@ -199,20 +200,20 @@ function processResult(results, label){
  * @return {Promise} promise object
  */
 function defaultTest(args, clientArgs, final) {
-    return new Promise( function(resolve, reject) {
+    return new Promise(function (resolve, reject) {
         const t = global.tapeObj;
         t.comment('\n\n###### testing \'' + args.label + '\' ######');
-        let testLabel   = args.label;
-        let testRounds  = args.txDuration ? args.txDuration : args.txNumber;
+        let testLabel = args.label;
+        let testRounds = args.txDuration ? args.txDuration : args.txNumber;
         let tests = []; // array of all test rounds
-        for(let i = 0 ; i < testRounds.length ; i++) {
+        for (let i = 0; i < testRounds.length; i++) {
             let msg = {
                 type: 'test',
-                label : args.label,
-                rateControl: args.rateControl[i] ? args.rateControl[i] : {type:'fixed-rate', 'opts' : {'tps': 1}},
+                label: args.label,
+                rateControl: args.rateControl[i] ? args.rateControl[i] : {type: 'fixed-rate', 'opts': {'tps': 1}},
                 trim: args.trim ? args.trim : 0,
                 args: args.arguments,
-                cb  : args.callback,
+                cb: args.callback,
                 config: absNetworkFile
             };
             // condition for time based or number based test driving
@@ -227,36 +228,36 @@ function defaultTest(args, clientArgs, final) {
             tests.push(msg);
         }
         let testIdx = 0;
-        return tests.reduce( function(prev, item) {
-            return prev.then( () => {
+        return tests.reduce(function (prev, item) {
+            return prev.then(() => {
                 log('----test round ' + round + '----');
                 round++;
                 testIdx++;
                 demo.startWatch(client);
 
-                return client.startTest(item, clientArgs, processResult, testLabel).then( () => {
+                return client.startTest(item, clientArgs, processResult, testLabel).then(() => {
                     demo.pauseWatch();
                     t.pass('passed \'' + testLabel + '\' testing');
                     return Promise.resolve();
-                }).then( () => {
-                    if(final && testIdx === tests.length) {
+                }).then(() => {
+                    if (final && testIdx === tests.length) {
                         return Promise.resolve();
                     }
                     else {
                         log('wait 5 seconds for next round...');
-                        return Util.sleep(5000).then( () => {
+                        return Util.sleep(5000).then(() => {
                             return monitor.restart();
                         });
                     }
-                }).catch( (err) => {
+                }).catch((err) => {
                     demo.pauseWatch();
-                    t.fail('failed \''  + testLabel + '\' testing, ' + (err.stack ? err.stack : err));
+                    t.fail('failed \'' + testLabel + '\' testing, ' + (err.stack ? err.stack : err));
                     return Promise.resolve();   // continue with next round ?
                 });
             });
-        }, Promise.resolve()).then( () => {
+        }, Promise.resolve()).then(() => {
             return resolve();
-        }).catch( (err) => {
+        }).catch((err) => {
             t.fail(err.stack ? err.stack : err);
             return reject(new Error('defaultTest failed'));
         });
@@ -268,19 +269,19 @@ function defaultTest(args, clientArgs, final) {
  * @param {String} configFile path of the test configuration file
  * @param {String} networkFile path of the blockchain configuration file
  */
-module.exports.run = function(configFile, networkFile) {
+module.exports.run = function (configFile, networkFile) {
     test('#######Caliper Test######', (t) => {
         global.tapeObj = t;
-        absConfigFile  = configFile;
+        absConfigFile = configFile;
         absNetworkFile = networkFile;
         blockchain = new Blockchain(absNetworkFile);
         monitor = new Monitor(absConfigFile);
-        client  = new Client(absConfigFile);
+        client = new Client(absConfigFile);
         createReport();
         demo.init();
         let startPromise = new Promise((resolve, reject) => {
             let config = require(absConfigFile);
-            if (config.hasOwnProperty('command') && config.command.hasOwnProperty('start')){
+            if (config.hasOwnProperty('command') && config.command.hasOwnProperty('start')) {
                 log(config.command.start);
                 let child = exec(config.command.start, {cwd: absCaliperDir}, (err, stdout, stderr) => {
                     if (err) {
@@ -298,55 +299,55 @@ module.exports.run = function(configFile, networkFile) {
 
         startPromise.then(() => {
             return blockchain.init();
-        }).then( () => {
+        }).then(() => {
             return blockchain.installSmartContract();
-        }).then( () => {
-            return client.init().then((number)=>{
+        }).then(() => {
+            return client.init().then((number) => {
                 return blockchain.prepareClients(number);
             });
-        }).then( (clientArgs) => {
-            monitor.start().then(()=>{
+        }).then((clientArgs) => {
+            monitor.start().then(() => {
                 log('started monitor successfully');
-            }).catch( (err) => {
+            }).catch((err) => {
                 log('could not start monitor, ' + (err.stack ? err.stack : err));
             });
 
-            let allTests  = require(absConfigFile).test.rounds;
-            let testIdx   = 0;
-            let testNum   = allTests.length;
-            return allTests.reduce( (prev, item) => {
-                return prev.then( () => {
+            let allTests = require(absConfigFile).test.rounds;
+            let testIdx = 0;
+            let testNum = allTests.length;
+            return allTests.reduce((prev, item) => {
+                return prev.then(() => {
                     ++testIdx;
                     return defaultTest(item, clientArgs, (testIdx === testNum));
                 });
             }, Promise.resolve());
-        }).then( () => {
+        }).then(() => {
             log('----------finished test----------\n');
             printResultsByRound();
             monitor.printMaxStats();
             monitor.stop();
-            let date = new Date().toISOString().replace(/-/g,'').replace(/:/g,'').substr(0,15);
-            let output = path.join(process.cwd(),'reports', 'report'+date+'.html' );
-            return report.generate(output).then(()=>{
+            let date = new Date().toISOString().replace(/-/g, '').replace(/:/g, '').substr(0, 15);
+            let output = path.join(process.cwd(), 'reports', 'report' + date + '.html');
+            return report.generate(output).then(() => {
                 demo.stopWatch(output);
                 log('Generated report at ' + output);
                 return Promise.resolve();
             });
-        }).then( () => {
+        }).then(() => {
             client.stop();
             let config = require(absConfigFile);
-            if (config.hasOwnProperty('command') && config.command.hasOwnProperty('end')){
+            if (config.hasOwnProperty('command') && config.command.hasOwnProperty('end')) {
                 log(config.command.end);
                 let end = exec(config.command.end, {cwd: absCaliperDir});
                 end.stdout.pipe(process.stdout);
                 end.stderr.pipe(process.stderr);
             }
             t.end();
-        }).catch( (err) => {
+        }).catch((err) => {
             demo.stopWatch();
             log('unexpected error, ' + (err.stack ? err.stack : err));
             let config = require(absConfigFile);
-            if (config.hasOwnProperty('command') && config.command.hasOwnProperty('end')){
+            if (config.hasOwnProperty('command') && config.command.hasOwnProperty('end')) {
                 log(config.command.end);
                 let end = exec(config.command.end, {cwd: absCaliperDir});
                 end.stdout.pipe(process.stdout);

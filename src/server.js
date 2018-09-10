@@ -27,7 +27,7 @@ app.get('/stop', (request, response) => {
 });
 
 app.get('/data/download', (request, response) => {
-    const filename = `test-results-${Date.now()}.tar.gz`;
+    const filename = `test-results-${new Date(Date.now()).toISOString()}.tar.gz`;
     const path = Path.join(downloadPath, filename);
     TarGz.compress({
         src: Path.join(Path.sep, 'caliper', 'data', 'dumps'),
@@ -36,7 +36,7 @@ app.get('/data/download', (request, response) => {
         if(err) {
             console.log(err);
         } else {
-            response.sendFile(path);
+            response.download(path, filename);
         }
     });
 });

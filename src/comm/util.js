@@ -14,6 +14,9 @@
 
 'use strict';
 
+const Path = require('path');
+const Fs = require('fs-extra');
+
 /**
  * Internal Utility class for Caliper
  */class Util {
@@ -34,6 +37,19 @@
     static log(...msg) {
         // eslint-disable-next-line no-console
         console.log(...msg);
+    }
+
+    static createDataDump(label, data) {
+        try {
+            console.log("Creating datadump");
+            const filename = `${label.toLowerCase().replace(/[^0-9a-z-]/gi, '')}-${new Date(Date.now()).toISOString()}.json`;
+            const path = Path.join(Path.sep, 'caliper', 'data', 'dumps', filename);
+            Fs.outputJsonSync(path, data);
+            console.log("Created datadump:", filename);
+        }
+        catch(e){
+            console.error("Unable to create datadump:",label,". Reason:", e)
+        }
     }
 }
 

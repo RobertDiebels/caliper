@@ -374,6 +374,10 @@ class MonitorDocker extends MonitorInterface {
     getNetworkHistory(key) {
         return {'in': this.stats[key].netIO_rx, 'out': this.stats[key].netIO_tx};
     }
+
+    createDataDump(label){
+        Util.createDataDump(label, {peers: this.getPeers(), statistics: this.stats});
+    }
 }
 
 module.exports = MonitorDocker;

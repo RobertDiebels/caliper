@@ -256,6 +256,14 @@ class Monitor {
         }
     }
 
+    createDataDump(label){
+        this.monitors.forEach((monitor)=>{
+            if(monitor.createDataDump){
+                monitor.createDataDump(label);
+            }
+        });
+    }
+
     /**
      * Print the maximum values of all watched items
      */
