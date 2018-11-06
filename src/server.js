@@ -6,7 +6,7 @@ const app = Express();
 
 const port = 3000;
 
-process.env.HFC_LOGGING = '{"debug":"console","info":"console","error": "console"}';
+// process.env.HFC_LOGGING = '{"debug":"console","info":"console","error": "console"}';
 const downloadPath = Path.posix.join(Path.posix.sep, 'caliper', 'data', 'downloads');
 Fs.ensureDirSync(downloadPath);
 app.use('/reports', Express.static(Path.join(Path.sep, 'caliper', 'reports')));

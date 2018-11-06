@@ -105,41 +105,41 @@ function installChaincode(org, chaincode) {
         // get the peer org's admin required to send install chaincode requests
         return testUtil.getSubmitter(client, true /* get peer org admin */, org);
     }).then((admin) => {
-            the_user = admin;
+        the_user = admin;
 
-            // send proposal to endorser
-            const request = {
-                targets: targets,
-                chaincodePath: chaincode.path,
-                chaincodeId: chaincode.id,
-                chaincodeType: chaincode.language,
-                chaincodeVersion: chaincode.version
-            };
-            return client.installChaincode(request);
-        },
-        (err) => {
-            throw new Error('Failed to enroll user \'admin\'. ' + err);
-        }).then((results) => {
-            const proposalResponses = results[0];
+        // send proposal to endorser
+        const request = {
+            targets: targets,
+            chaincodePath: chaincode.path,
+            chaincodeId: chaincode.id,
+            chaincodeType: chaincode.language,
+            chaincodeVersion: chaincode.version
+        };
+        return client.installChaincode(request);
+    },
+    (err) => {
+        throw new Error('Failed to enroll user \'admin\'. ' + err);
+    }).then((results) => {
+        const proposalResponses = results[0];
 
-            let all_good = true;
-            const errors = [];
-            for (let i in proposalResponses) {
-                let one_good = false;
-                if (proposalResponses && proposalResponses[i].response && proposalResponses[i].response.status === 200) {
-                    one_good = true;
-                } else {
-                    errors.push(proposalResponses[i]);
-                }
-                all_good = all_good && one_good;
+        let all_good = true;
+        const errors = [];
+        for (let i in proposalResponses) {
+            let one_good = false;
+            if (proposalResponses && proposalResponses[i].response && proposalResponses[i].response.status === 200) {
+                one_good = true;
+            } else {
+                errors.push(proposalResponses[i]);
             }
-            if (!all_good) {
-                throw new Error(util.format('Failed to send install Proposal or receive valid response: %s', errors));
-            }
-        },
-        (err) => {
-            throw new Error('Failed to send install proposal due to error: ' + (err.stack ? err.stack : err));
-        })
+            all_good = all_good && one_good;
+        }
+        if (!all_good) {
+            throw new Error(util.format('Failed to send install Proposal or receive valid response: %s', errors));
+        }
+    },
+    (err) => {
+        throw new Error('Failed to send install proposal due to error: ' + (err.stack ? err.stack : err));
+    })
         .catch((err) => {
             return Promise.reject(err);
         });
@@ -400,7 +400,53 @@ function getOrgPeers(orgName) {
 
     return peers;
 }
-let currentPeerIndex = 0;
+
+const loadBalancingConfigurationGroups = [];
+let groupsWithUrls = [];
+
+function createTransactionLoadBalancingGroups(channel, amountOfGroups) {
+    if (amountOfGroups) {
+        const allPeers = channel.getPeers();
+
+        let remainder = allPeers.length % amountOfGroups;
+        const groupSize = (allPeers.length - remainder) / amountOfGroups;
+        const groupSizeToRemoveRemainder = groupSize + 1;
+
+        for (let i = 0; i < amountOfGroups; i++) {
+            if (remainder !== 0) {
+                const group = allPeers.splice(0, groupSizeToRemoveRemainder);
+                loadBalancingConfigurationGroups.push(group);
+                remainder--;
+            }
+            else {
+                const group = allPeers.splice(0, groupSize);
+                loadBalancingConfigurationGroups.push(group);
+            }
+        }
+
+        console.log('Created the following groups:');
+        groupsWithUrls = loadBalancingConfigurationGroups.map(group => group.map(peer => peer.getUrl()));
+        groupsWithUrls.forEach(group => console.log(group));
+    }
+}
+
+let currentGroupIndex = 0;
+
+function createLoadBalancedTransactionProposalRequest(request) {
+    if (loadBalancingConfigurationGroups.length > 1) {
+        const targets = loadBalancingConfigurationGroups[currentGroupIndex];
+        console.log('[Load-balancer] Targeting:', groupsWithUrls[currentGroupIndex]);
+        request.targets = targets;
+
+        currentGroupIndex++;
+        if(currentGroupIndex > loadBalancingConfigurationGroups.length - 1){
+            currentGroupIndex = 0;
+        }
+    }
+
+    return request;
+}
+
 /**
  * Create a Fabric context based on the channel configuration.
  * @param {object} channelConfig The channel object from the configuration file.
@@ -455,8 +501,8 @@ function getcontext(channelConfig) {
                 if (peers.length === 0) {
                     throw new Error('could not find peer of ' + org);
                 }
-                else{
-                    peers.forEach((peerInfo)=>{
+                else {
+                    peers.forEach((peerInfo) => {
                         let data = fs.readFileSync(peerInfo.tls_cacerts);
                         let peer = client.newPeer(
                             peerInfo.requests,
@@ -495,6 +541,14 @@ function getcontext(channelConfig) {
             return channel.initialize();
         })
         .then((nothing) => {
+            try {
+                const amountofGroups = parseInt(process.env.LOAD_BALANCING_AMOUNT_OF_GROUPS);
+                createTransactionLoadBalancingGroups(channel, amountofGroups);
+            }
+            catch (e) {
+                console.log('Unable to create transaction load-balancing groups.', e);
+            }
+
             return Promise.resolve({
                 org: userOrg,
                 client: client,
@@ -568,12 +622,12 @@ async function invokebycontext(context, id, version, args, timeout) {
     // send proposal to endorser
     const f = args[0];
     args.shift();
-    const proposalRequest = {
+    const proposalRequest = createLoadBalancedTransactionProposalRequest({
         chaincodeId: id,
         fcn: f,
         args: args,
         txId: txIdObject,
-    };
+    });
 
     let proposalResponseObject = null;
     try {
@@ -581,7 +635,7 @@ async function invokebycontext(context, id, version, args, timeout) {
             context.engine.submitCallback(1);
         }
         try {
-            console.log("Endorsement phase started");
+            console.log('Endorsement phase started');
             proposalResponseObject = await channel.sendTransactionProposal(proposalRequest, timeout * 1000);
             invokeStatus.time_endorse = Date.now();
         } catch (err) {
@@ -590,7 +644,7 @@ async function invokebycontext(context, id, version, args, timeout) {
             invokeStatus.error_messages[TxErrorIndex.ProposalResponseError] = err.toString();
             // error occurred, early life-cycle termination, definitely failed
             invokeStatus.verified = true;
-            console.log("Error during endorsement", err);
+            console.log('Error during endorsement', err);
             throw err; // handle logging in one place
         }
 
@@ -614,7 +668,7 @@ async function invokebycontext(context, id, version, args, timeout) {
                 invokeStatus.error_messages[TxErrorIndex.BadProposalResponseError] = err.toString();
                 // explicit rejection, early life-cycle termination, definitely failed
                 invokeStatus.verified = true;
-                console.log("Endorsement phase failed", err);
+                console.log('Endorsement phase failed', err);
                 throw err;
             }
             allGood = allGood && one_good;
@@ -630,7 +684,7 @@ async function invokebycontext(context, id, version, args, timeout) {
                 invokeStatus.error_messages[TxErrorIndex.BadProposalResponseError] = err.toString();
                 // r/w set mismatch, early life-cycle termination, definitely failed
                 invokeStatus.verified = true;
-                console.log("Endorsement phase failed", err);
+                console.log('Endorsement phase failed', err);
                 throw err;
             }
         }
@@ -681,7 +735,7 @@ async function invokebycontext(context, id, version, args, timeout) {
             }));
         });
 
-        console.log("Ordering phase started");
+        console.log('Ordering phase started');
         let broadcastResponse;
         try {
             broadcastResponse = await channel.sendTransaction(transactionRequest);
@@ -690,12 +744,12 @@ async function invokebycontext(context, id, version, args, timeout) {
             // so let the events decide the final status, but log this error
             invokeStatus.error_flags |= TxErrorEnum.OrdererResponseError;
             invokeStatus.error_messages[TxErrorIndex.OrdererResponseError] = err.toString();
-            console.log("Error during ordering phase", err);
+            console.log('Error during ordering phase', err);
         }
 
         invokeStatus.time_order = Date.now();
 
-        console.log("Validation phase started");
+        console.log('Validation phase started');
         if (broadcastResponse && broadcastResponse.status === 'SUCCESS') {
             invokeStatus.status = 'submitted';
         } else if (broadcastResponse && broadcastResponse.status !== 'SUCCESS') {
@@ -704,7 +758,7 @@ async function invokebycontext(context, id, version, args, timeout) {
             invokeStatus.error_messages[TxErrorIndex.BadOrdererResponseError] = err.toString();
             // the submission was explicitly rejected, so the Tx will definitely not be ordered
             invokeStatus.verified = true;
-            console.log("Error during validation phase", err);
+            console.log('Error during validation phase', err);
             throw err;
         }
 
@@ -775,8 +829,8 @@ function querybycontext(context, id, version, name) {
 
                 for (let i = 1; i < responses.length; i++) {
                     if (responses[i].length !== value.length || !responses[i].every(function (v, idx) {
-                            return v === value[idx];
-                        })) {
+                        return v === value[idx];
+                    })) {
                         throw new Error('conflicting query responses');
                     }
                 }
