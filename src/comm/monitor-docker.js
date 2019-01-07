@@ -280,10 +280,8 @@ class MonitorDocker extends MonitorInterface {
     }
 
     static findCoresInUse(percpu_usage) {
-        percpu_usage = percpu_usage.map((coreUsage) => {
-            if (coreUsage > 0) {
-                return (coreUsage);
-            }
+        percpu_usage = percpu_usage.filter((coreUsage) => {
+            return coreUsage > 0;
         });
         return percpu_usage.length;
     }

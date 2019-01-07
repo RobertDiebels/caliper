@@ -7,6 +7,8 @@
 
 
 'use strict';
+let path = require('path');
+let childProcess = require('child_process');
 const log = require('../util.js').log;
 let processes = {}; // {pid:{obj, promise}}
 
@@ -58,15 +60,17 @@ function pushUpdate(pid, data) {
  * @param {Array} results array to save the test results
  */
 function launchClient(updates, results) {
-    let path = require('path');
-    let childProcess = require('child_process');
     let child = childProcess.fork(path.join(__dirname, 'local-client.js'));
     let pid = child.pid.toString();
     processes[pid] = {obj: child, results: results, updates: updates};
 
+    console.log('Launching client', Object.keys(processes).toString());
+
     child.on('message', function (msg) {
         if (msg.type === 'testResult') {
-            pushResult(pid, msg.data);
+            msg.data.forEach((invocationStatus)=>{
+                pushResult(pid, invocationStatus);
+            });
             setPromise(pid, true, null);
         }
         else if (msg.type === 'error') {
@@ -148,6 +152,7 @@ function startTest(number, message, clientArgs, updates, results) {
 
         return Promise.all(promises).then(() => {
             // clear promises
+            console.log('Client promises resolved');
             for (let client in processes) {
                 delete client.promise;
             }

@@ -156,6 +156,12 @@ class Client{
         }).then(()=>{
             return Promise.resolve();
         }).catch((err)=>{
+            global.roundStatus = {
+                name: global.roundStatus.name,
+                status: 'error',
+                message: err.toString(),
+                transactions: global.roundStatus.transactions
+            };
             return Promise.reject(err);
         });
     }

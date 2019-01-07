@@ -8,41 +8,58 @@
 'use strict';
 
 // global variables
-const Path = require('path');
-const Fs = require('fs-extra');
+const FabricUtils = require('fabric-client/lib/utils');
+process.env.HFC_LOGGING = '{"error":"console"}';
+FabricUtils.getLogger();
+//Dirty hack to silence Fabric logger...
+if (global.hfc && global.hfc.logger && global.hfc.logger.transports) {
+    for (let transport in global.hfc.logger.transports) {
+        if (global.hfc.logger.transports.hasOwnProperty(transport)) {
+            const transportLogger = global.hfc.logger.transports[transport];
+            transportLogger.silent = true;
+        }
+    }
+}
+
 const bc = require('../blockchain.js');
 const RateControl = require('../rate-control/rateControl.js');
 const Util = require('../util.js');
 const log = Util.log;
 
 let blockchain;
-let results = [];
-let txNum = 0;
+let amountOfSubmittedTransactions = 0;
+let sentTransactions = [];
+let transactionResults = [];
+let amountOfTransactionsToSent = 0;
 let txLastNum = 0;
 let txUpdateTail = 0;
-let txUpdateTime = 1000;
+let txUpdateTime = 10000;
+let txSucceeded = 0;
+let txFailed = 0;
 
 /**
  * Calculate realtime transaction statistics and send the txUpdated message
  */
 function txUpdate() {
-    let newNum = txNum - txLastNum;
+    let newNum = amountOfSubmittedTransactions - txLastNum;
     txLastNum += newNum;
 
-    let newResults = results.slice(txUpdateTail);
+    let newResults = transactionResults.slice(txUpdateTail);
     txUpdateTail += newResults.length;
     if (newResults.length === 0 && newNum === 0) {
         return;
     }
 
-    let newStats;
-    if (newResults.length === 0) {
-        newStats = bc.createNullDefaultTxStats();
-    }
-    else {
-        newStats = blockchain.getDefaultTxStats(newResults, false);
-    }
-    process.send({type: 'txUpdated', data: {submitted: newNum, committed: newStats}});
+    newResults.forEach((result) => {
+        if (result.status === 'success') {
+            txSucceeded++;
+        }
+        else if (result.status === 'failed') {
+            txFailed++;
+        }
+    });
+    console.log(`[Transactions] \n Total to sent - ${amountOfTransactionsToSent} \n Submitted - ${amountOfSubmittedTransactions} \n Finished - ${transactionResults.length} \n Transactions remaining - ${amountOfTransactionsToSent - transactionResults.length} \n Failed - ${txFailed} \n Succeeded - ${txSucceeded}`);
+    // process.send({type: 'txUpdated', data: {submitted: newNum, committed: {succ: succ, fail: fail}}});
 }
 
 /**
@@ -52,11 +69,11 @@ function txUpdate() {
 function addResult(result) {
     if (Array.isArray(result)) { // contain multiple results
         for (let i = 0; i < result.length; i++) {
-            results.push(result[i]);
+            transactionResults.push(result[i]);
         }
     }
     else {
-        results.push(result);
+        transactionResults.push(result);
     }
 }
 
@@ -64,8 +81,8 @@ function addResult(result) {
  * Call before starting a new test
  */
 function beforeTest() {
-    results = [];
-    txNum = 0;
+    transactionResults = [];
+    amountOfSubmittedTransactions = 0;
     txUpdateTail = 0;
     txLastNum = 0;
 }
@@ -75,7 +92,7 @@ function beforeTest() {
  * @param {Number} count count of new submitted transaction(s)
  */
 function submitCallback(count) {
-    txNum += count;
+    amountOfSubmittedTransactions += count;
 }
 
 /**
@@ -93,17 +110,21 @@ async function runFixedNumber(msg, cb, context) {
     await cb.init(blockchain, context, msg.args);
     const start = Date.now();
 
-    let promises = [];
-    while (txNum < msg.numb) {
-        promises.push(cb.run().then((result) => {
-            addResult(result);
+    console.log('Started submitting');
+    while (amountOfSubmittedTransactions < msg.numb) {
+        sentTransactions.push(cb.run().then((invokeStatus) => {
+            addResult(invokeStatus);
             return Promise.resolve();
+        }).catch((e) => {
+            console.error('Error running callback:', e);
         }));
-        await rateControl.applyRateControl(start, txNum, results);
+        await rateControl.applyRateControl(start, amountOfSubmittedTransactions, transactionResults);
     }
-
-    await Promise.all(promises);
+    console.log('Finished submitting');
+    await Promise.all(sentTransactions);
+    console.log('All transactions committed');
     await rateControl.end();
+    console.log('Releasing context');
     return await blockchain.releaseContext(context);
 }
 
@@ -129,7 +150,7 @@ async function runDuration(msg, cb, context) {
             addResult(result);
             return Promise.resolve();
         }));
-        await rateControl.applyRateControl(start, txNum, results);
+        await rateControl.applyRateControl(start, amountOfSubmittedTransactions, transactionResults);
     }
 
     await Promise.all(promises);
@@ -137,9 +158,6 @@ async function runDuration(msg, cb, context) {
     return await blockchain.releaseContext(context);
 }
 
-function createDataDump(message, results) {
-    Util.createDataDump(message.label + '-transactions', results);
-}
 
 /**
  * Perform the test
@@ -153,6 +171,7 @@ function doTest(msg) {
 
     beforeTest();
     // start an interval to report results repeatedly
+    amountOfTransactionsToSent = msg.numb;
     let txUpdateInter = setInterval(txUpdate, txUpdateTime);
     /**
      * Clear the update interval
@@ -186,25 +205,23 @@ function doTest(msg) {
         }
     }).then(() => {
         clearUpdateInter();
-        createDataDump(msg, results);
-        return cb.end(results);
+        return cb.end(transactionResults);
     }).then(() => {
         // conditionally trim beginning and end results for this test run
         if (msg.trim) {
             let trim;
             if (msg.txDuration) {
                 // Considering time based number of transactions
-                trim = Math.floor(msg.trim * (results.length / msg.txDuration));
+                trim = Math.floor(msg.trim * (transactionResults.length / msg.txDuration));
             } else {
                 // Considering set number of transactions
                 trim = msg.trim;
             }
-            let safeCut = (2 * trim) < results.length ? trim : results.length;
-            results = results.slice(safeCut, results.length - safeCut);
+            let safeCut = (2 * trim) < transactionResults.length ? trim : transactionResults.length;
+            transactionResults = transactionResults.slice(safeCut, transactionResults.length - safeCut);
         }
-
-        let stats = blockchain.getDefaultTxStats(results, true);
-        return Promise.resolve(stats);
+        console.log('Resolving doTest()');
+        return Promise.resolve(transactionResults);
     }).catch((err) => {
         clearUpdateInter();
         log('Client ' + process.pid + ': error ' + (err.stack ? err.stack : err));
@@ -225,7 +242,12 @@ process.on('message', function (message) {
                     result = output;
                     return Util.sleep(200);
                 }).then(() => {
+                    console.log('Sending results to parent process.');
                     process.send({type: 'testResult', data: result});
+                    return undefined;
+                }).catch((e) => {
+                    console.log("Error in doTest()", e);
+                    process.send({type: 'error', data: e});
                 });
                 break;
             }

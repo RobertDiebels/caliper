@@ -26,7 +26,6 @@ const log = Util.log;
 let blockchain, monitor, report, client;
 let resultsbyround = [];    // results table for each test round
 let round = 0;              // test round
-let demo = require('../gui/src/demo.js');
 let absConfigFile, absNetworkFile;
 let absCaliperDir = path.join(__dirname, '../..');
 
@@ -148,21 +147,23 @@ function printResultsByRound() {
  *     final  : {min:, max: },            // min/max time when txns were committed
  *     delay  : {min:, max: , sum:, detail:[]},     // min/max/sum of txns' end2end delay, as well as all txns' delay
  * }
- * @param {Array} results array of txStatistics
+ * @param {Array} transactions array of txStatistics
  * @param {String} label label of the test round
  * @return {Promise} promise object
  */
-function processResult(results, label) {
+function processResult(transactions, label) {
     try {
+        console.log('Processing transactions', transactions.length);
         let resultTable = [];
         resultTable[0] = getResultTitle();
         let r;
-        if (Blockchain.mergeDefaultTxStats(results) === 0) {
+        let stats = [blockchain.getDefaultTxStats(transactions, true)];
+        if (Blockchain.mergeDefaultTxStats(stats) === 0) {
             r = Blockchain.createNullDefaultTxStats;
             r.label = label;
         }
         else {
-            r = results[0];
+            r = stats[0];
             r.label = label;
             resultTable[1] = getResultValue(r);
         }
@@ -178,7 +179,8 @@ function processResult(results, label) {
         let idx = report.addBenchmarkRound(label);
         report.setRoundPerformance(idx, resultTable);
         let resourceTable = monitor.getDefaultStats();
-        monitor.createDataDump(label+"-resources");
+        monitor.createDataDump(label + '-resources');
+        Util.createDataDump(label + '-transactions', transactions);
         if (resourceTable.length > 0) {
             log('### resource stats ###');
             printTable(resourceTable);
@@ -233,10 +235,18 @@ function defaultTest(args, clientArgs, final) {
                 log('----test round ' + round + '----');
                 round++;
                 testIdx++;
-                demo.startWatch(client);
+                global.roundStatus = {
+                    name: item.label,
+                    status: 'initializing',
+                    transactions: {
+                        submitted: 0,
+                        succeeded: 0,
+                        failed: 0,
+                        unfinished: 0
+                    }
+                };
 
                 return client.startTest(item, clientArgs, processResult, testLabel).then(() => {
-                    demo.pauseWatch();
                     t.pass('passed \'' + testLabel + '\' testing');
                     return Promise.resolve();
                 }).then(() => {
@@ -250,7 +260,6 @@ function defaultTest(args, clientArgs, final) {
                         });
                     }
                 }).catch((err) => {
-                    demo.pauseWatch();
                     t.fail('failed \'' + testLabel + '\' testing, ' + (err.stack ? err.stack : err));
                     return Promise.resolve();   // continue with next round ?
                 });
@@ -278,7 +287,7 @@ module.exports.run = function (configFile, networkFile) {
         monitor = new Monitor(absConfigFile);
         client = new Client(absConfigFile);
         createReport();
-        demo.init();
+        global.status = 'initializing';
         let startPromise = new Promise((resolve, reject) => {
             let config = require(absConfigFile);
             if (config.hasOwnProperty('command') && config.command.hasOwnProperty('start')) {
@@ -308,6 +317,7 @@ module.exports.run = function (configFile, networkFile) {
         }).then((clientArgs) => {
             monitor.start().then(() => {
                 log('started monitor successfully');
+                return;
             }).catch((err) => {
                 log('could not start monitor, ' + (err.stack ? err.stack : err));
             });
@@ -315,6 +325,7 @@ module.exports.run = function (configFile, networkFile) {
             let allTests = require(absConfigFile).test.rounds;
             let testIdx = 0;
             let testNum = allTests.length;
+            global.status = 'busy';
             return allTests.reduce((prev, item) => {
                 return prev.then(() => {
                     ++testIdx;
@@ -329,23 +340,24 @@ module.exports.run = function (configFile, networkFile) {
             let date = new Date().toISOString().replace(/-/g, '').replace(/:/g, '').substr(0, 15);
             let output = path.join(process.cwd(), 'reports', 'report' + date + '.html');
             return report.generate(output).then(() => {
-                demo.stopWatch(output);
                 log('Generated report at ' + output);
                 return Promise.resolve();
             });
         }).then(() => {
             client.stop();
             let config = require(absConfigFile);
-            if (config.hasOwnProperty('command') && config.command.hasOwnProperty('end')) {
+            if(config.hasOwnProperty('command') && config.command.hasOwnProperty('end')) {
                 log(config.command.end);
                 let end = exec(config.command.end, {cwd: absCaliperDir});
                 end.stdout.pipe(process.stdout);
                 end.stderr.pipe(process.stderr);
             }
             t.end();
+            global.status = 'finished';
+            return;
         }).catch((err) => {
-            demo.stopWatch();
             log('unexpected error, ' + (err.stack ? err.stack : err));
+            global.status = 'error';
             let config = require(absConfigFile);
             if (config.hasOwnProperty('command') && config.command.hasOwnProperty('end')) {
                 log(config.command.end);

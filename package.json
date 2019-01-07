@@ -1,6 +1,6 @@
 {
   "name": "caliper",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/hyperledger/caliper"
@@ -9,11 +9,11 @@
     "test": "npm run lint && npm run nyc && npm run e2e",
     "nyc": "nyc mocha --recursive -t 10000",
     "e2e": "node ./scripts/test.js",
-    "lint": "npx eslint .",
+    "lint": "npx eslint ./src",
     "list": "node ./scripts/list.js",
     "startclient": "node ./src/comm/client/zoo-client.js",
-    "start": "node --preserve-symlinks ./src/index.js -c /caliper/benchmark/configuration.json -n /caliper/network/configuration.json",
-    "start-server": "node --preserve-symlinks ./src/server.js -c /caliper/benchmark/configuration.json -n /caliper/network/configuration.json"
+    "start": "node --preserve-symlinks --max-old-space-size=10000 --no-warnings ./src/index.js -c /caliper/benchmark/configuration.json -n /caliper/network/configuration.json",
+    "start-server": "node --preserve-symlinks --max-old-space-size=10000 --no-warnings ./src/server.js -c /caliper/benchmark/configuration.json -n /caliper/network/configuration.json"
   },
   "engines": {
     "node": ">=8.10.0",
@@ -49,6 +49,7 @@
   "devDependencies": {
     "chai": "^3.5.0",
     "eslint": "^4.19.1",
+    "eslint-plugin-promise": "^4.0.1",
     "mocha": "3.4.2",
     "nyc": "11.1.0",
     "rewire": "^4.0.0",

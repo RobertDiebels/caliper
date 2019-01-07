@@ -11,14 +11,11 @@
 
 /* global variables */
 var path = require('path');
-var demoFile = path.join(__dirname, '../output/demo.json');
 var demoInterval = 1;   // interval length(s)
 var demoXLen = 60;     // default x axis length
 var demoData;
 var demoInterObj = null;
-var demoSessionID = 0;
 function demoInit() {
-    var fs = require('fs');
     demoData =  {
         throughput: {
             x: [],
@@ -39,12 +36,11 @@ function demoInit() {
             round: 0,
         },
         report: ''
-    }
+    };
     for(let i = 0 ; i < demoXLen ; i++) {
         demoData.throughput.x.push(i * demoInterval);
         demoData.latency.x.push(i * demoInterval);
     }
-    fs.writeFileSync(demoFile,  JSON.stringify(demoData));
 }
 module.exports.init = demoInit;
 
@@ -80,61 +76,43 @@ function demoAddThroughput(sub, suc, fail) {
     demoData.summary.txSucc += suc;
     demoData.summary.txFail += fail;
 }
-function demoAddLatency(max, min, avg) {
-    demoData.latency.max.push(max);
-    demoData.latency.min.push(min);
-    demoData.latency.avg.push(avg);
-}
 
 function demoRefreshData(updates) {
     if(updates.length  === 0) {
         demoAddThroughput(0,0,0);
-        demoAddLatency(0,0,0);
     }
     else {
         var sub = 0, suc = 0, fail = 0;
-        var deMax = -1, deMin = -1, deAvg = 0;
         for(let i = 0 ; i < updates.length ; i++) {
             let data = updates[i];
             sub += data.submitted;
             suc += data.committed.succ;
             fail += data.committed.fail;
-
-            if(data.committed.succ > 0) {
-                if(deMax === -1 || deMax < data.committed.delay.max) {
-                    deMax = data.committed.delay.max;
-                }
-                if(deMin === -1 || deMin > data.committed.delay.min) {
-                    deMin = data.committed.delay.min;
-                }
-                deAvg += data.committed.delay.sum;
-            }
-        }
-        if(suc > 0) {
-            deAvg /= suc;
         }
         demoAddThroughput(sub, suc, fail);
-
-        if(deMax === NaN || deMin === NaN || deAvg === 0) {
-            demoAddLatency(0,0,0);
-        }
-        else {
-            demoAddLatency(deMax, deMin, deAvg);
-        }
-
     }
 
     demoRefreshX();
 
+    const transactionInfo = {
+        submitted: demoData.summary.txSub,
+        succeeded: demoData.summary.txSucc,
+        failed: demoData.summary.txFail,
+        unfinished: (demoData.summary.txSub - demoData.summary.txSucc - demoData.summary.txFail)
+    };
    // if(started) {
-        console.log('[Transaction Info] - Submitted: ' + demoData.summary.txSub
-        + ' Succ: ' + demoData.summary.txSucc
-        + ' Fail:' +  demoData.summary.txFail
-        + ' Unfinished:' + (demoData.summary.txSub - demoData.summary.txSucc - demoData.summary.txFail));
+        console.log('[Transaction Info] - Submitted: ' + transactionInfo.submitted
+        + ' Succ: ' + transactionInfo.succeeded
+        + ' Fail:' +  transactionInfo.failed
+        + ' Unfinished:' + transactionInfo.unfinished);
    // }
 
-    var fs = require('fs');
-    fs.writeFileSync(demoFile,  JSON.stringify(demoData));
+    global.roundStatus = {
+        name: global.roundStatus.name,
+        status: 'busy',
+        transactions: transactionInfo
+    };
+
 }
 
 var client;
@@ -163,7 +141,7 @@ function demoStartWatch(clientObj) {
         updateTail = 0;
         updateID   = 0;
         // start a interval to query updates
-        demoInterObj = setInterval(update, demoInterval * 1000);
+        demoInterObj = setInterval(update, demoInterval * 15000);
     }
 }
 module.exports.startWatch = demoStartWatch;

@@ -1,8 +1,12 @@
+plugins:
+    - promise
 env:
     es6: true
     node: true
     mocha: true
-extends: 'eslint:recommended'
+extends:
+    - eslint:recommended
+    - plugin:promise/recommended
 parserOptions:
     ecmaVersion: 8
     sourceType:
@@ -11,9 +15,6 @@ rules:
     indent:
         - error
         - 4
-    linebreak-style:
-        - error
-        - unix
     quotes:
         - error
         - single
@@ -46,3 +47,14 @@ rules:
         - error
         - requireReturn: false
     yoda: error
+    promise/always-return: error
+    promise/no-return-wrap: error
+    promise/param-names: error
+    promise/catch-or-return: error
+    promise/no-native: off
+    promise/no-nesting: warn
+    promise/no-promise-in-callback: warn
+    promise/avoid-new: off
+    promise/no-new-statics: error
+    promise/no-return-in-finally: warn
+    promise/valid-params: warn

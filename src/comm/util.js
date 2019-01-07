@@ -19,7 +19,8 @@ const Fs = require('fs-extra');
 
 /**
  * Internal Utility class for Caliper
- */class Util {
+ */
+class Util {
 
     /**
      * Perform a sleep
@@ -41,14 +42,14 @@ const Fs = require('fs-extra');
 
     static createDataDump(label, data) {
         try {
-            console.log("Creating datadump");
-            const filename = `${label.toLowerCase().replace(/[^0-9a-z-]/gi, '')}-${new Date(Date.now()).toISOString()}.json`;
+            console.log('Creating datadump');
+            const filename = `${label.toLowerCase()}-${new Date(Date.now()).toISOString()}.json`.replace(/[^0-9a-z-.]/gi, '-');
             const path = Path.join(Path.sep, 'caliper', 'data', 'dumps', filename);
             Fs.outputJsonSync(path, data);
-            console.log("Created datadump:", filename);
+            console.log('Created datadump:', filename);
         }
-        catch(e){
-            console.error("Unable to create datadump:",label,". Reason:", e)
+        catch (e) {
+            throw new Error('Unable to create datadump:'+ label+ '. Reason:'+ e);
         }
     }
 }
